@@ -216,4 +216,4 @@ function renderAll(){let arr=filtered();renderKpis(arr);renderCharts(arr);render
 async function init(){await syncFromFirebase();loadSettings();await loadData();renderAll();applyPermissions();listenForVirginChanges();}
 async function preloadAuth(){let users=await sharedGet('virgin_users_v4');if(users)localStorage.setItem('virgin_users_v4',users)}
 preloadAuth().then(()=>{if(localStorage.getItem('virgin_logged_v2')==='1'){document.getElementById('login').classList.add('hidden');init();}});
-</script></body></html>
+</script></body></html> 
