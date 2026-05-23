@@ -141,7 +141,56 @@ function calcAchievement(actual,target){return n(target)?actual/n(target)*100:0}
 function textOf(r){return Object.values(r).join(' ').toLowerCase()} function isPostpaid(r){let t=textOf(r);return t.includes('postpaid')||t.includes('post paid')||t.includes('بوست')} function isHbb(r){let t=textOf(r);return t.includes('hbb')||t.includes('fnet')||t.includes('في نت')||t.includes('fiber')}
 function userRows(arr){const by=groupBy(arr,getUser);return Object.entries(by).map(([user,rows])=>{let t=TARGETS[user]||{};let f=rows.filter(isFriendi),v=rows.filter(isVirgin),p=rows.filter(isPostpaid),h=rows.filter(isHbb);return {user,rows,friendiSales:sales(f),virginSales:sales(v),postpaidSales:sales(p),hbbSales:sales(h),friendiRev:revenue(f),virginRev:revenue(v),totalRev:revenue(rows),totalSales:sales(rows),t}}).sort((a,b)=>b.totalSales-a.totalSales)}
 function renderKpis(arr){const total=sales(arr), rev=revenue(arr), first=sum(arr,'Activations - 1st Recharge Count'), second=sum(arr,'Activations - 2nd Recharge Count'), virgin=sales(arr.filter(isVirgin)), friendi=sales(arr.filter(isFriendi));document.getElementById('kpis').innerHTML=`<div class="kpi"><div class="label">إجمالي FPE Count</div><div class="value">${fmt(total)}</div><div class="sub">جميع البراندات</div></div><div class="kpi green"><div class="label">إجمالي الرفينيو</div><div class="value">${money(rev)}</div><div class="sub">IBR Amount Without VAT</div></div><div class="kpi"><div class="label">Virgin Activations</div><div class="value">${fmt(virgin)}</div></div><div class="kpi orange"><div class="label">FRiENDi Activations</div><div class="value">${fmt(friendi)}</div></div><div class="kpi"><div class="label">1st Recharge</div><div class="value">${fmt(first)}</div></div><div class="kpi"><div class="label">2nd Recharge</div><div class="value">${fmt(second)}</div></div>`}
-function renderCharts(arr){const byDate=groupBy(arr,r=>getDate(r));let d=Object.keys(byDate).sort();chart('dailyChart','line',d,d.map(k=>sales(byDate[k])),'FPE Count');const byBrand=groupBy(arr,'Segment Brand');chart('brandChart','doughnut',Object.keys(byBrand),Object.values(byBrand).map(v=>sales(v)),'Activations');let users=userRows(arr).slice(0,12);chart('dealerChart','bar',users.map(x=>x.user),users.map(x=>x.totalSales),'Activations');chart('userRevenueChart','bar',users.map(x=>x.user),users.map(x=>Math.round(x.totalRev)),'Revenue');}
+function renderCharts(arr){const byDate=groupBy(arr,r=>getDate(r));let d=Object.keys(byDate).sort();chart('dailyChart','line',d,d.map(k=>sales(byDate[k])),'FPE Count');const byBrand=groupBy(arr,'Segment Brand');chart('brandChart','doughnut',Object.keys(byBrand),Object.values(byBrand).map(v=>sales(v)),'Activations');let users=userRows(arr).slice(0,12);// Stacked chart: Friendi + Virgin activations per user
+  const dealerEl = document.getElementById('dealerChart');
+  if(dealerEl){
+    if(window._dealerChartInst) window._dealerChartInst.destroy();
+    window._dealerChartInst = new Chart(dealerEl, {
+      type:'bar',
+      data:{
+        labels: users.map(x=>x.user),
+        datasets:[
+          {label:'FRiENDi',data:users.map(x=>x.friendiSales||0),backgroundColor:'#4a90d9',borderRadius:4},
+          {label:'Virgin',data:users.map(x=>x.virginSales||0),backgroundColor:'#e10a0a',borderRadius:4}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{position:'bottom'},
+          datalabels:{display:true,anchor:'end',align:'start',color:'#fff',font:{weight:'700',size:11},
+            formatter:v=>v>0?v.toLocaleString('en-US'):''}
+        },
+        scales:{x:{stacked:false},y:{beginAtZero:true,ticks:{callback:v=>v.toLocaleString('en-US')}}}
+      },
+      plugins:[ChartDataLabels]
+    });
+  }
+  // Stacked chart: Friendi + Virgin revenue per user
+  const revenueEl = document.getElementById('userRevenueChart');
+  if(revenueEl){
+    if(window._revenueChartInst) window._revenueChartInst.destroy();
+    window._revenueChartInst = new Chart(revenueEl, {
+      type:'bar',
+      data:{
+        labels: users.map(x=>x.user),
+        datasets:[
+          {label:'FRiENDi Revenue',data:users.map(x=>Math.round(x.friendiRev||0)),backgroundColor:'#4a90d9',borderRadius:4},
+          {label:'Virgin Revenue',data:users.map(x=>Math.round(x.virginRev||0)),backgroundColor:'#e10a0a',borderRadius:4}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{position:'bottom'},
+          datalabels:{display:true,anchor:'end',align:'start',color:'#fff',font:{weight:'700',size:10},
+            formatter:v=>v>0?v.toLocaleString('en-US'):''}
+        },
+        scales:{x:{stacked:false},y:{beginAtZero:true,ticks:{callback:v=>v.toLocaleString('en-US')}}}
+      },
+      plugins:[ChartDataLabels]
+    });
+  }}
 function table(headers,rows){return `<div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`}
 function renderTables(arr){let rows=userRows(arr);document.getElementById('branchesTable').innerHTML=table(['اليوزر','مبيعات فرندي','تارجت فرندي','نسبة التحقيق','مبيعات فيرجن','تارجت فيرجن','نسبة التحقيق','رفينيو فرندي','تارجت رفينيو فرندي','نسبة التحقيق','رفينيو فيرجن','تارجت رفينيو فيرجن','نسبة التحقيق'],rows.map(x=>{let tf=n(x.t.friendiTarget),tv=n(x.t.virginTarget),trf=n(x.t.friendiRevTarget),trv=n(x.t.virginRevTarget);return `<tr><td>${x.user}</td><td>${fmt(x.friendiSales)}</td><td>${fmt(tf)}</td><td>${pctBadge(calcAchievement(x.friendiSales,tf))}</td><td>${fmt(x.virginSales)}</td><td>${fmt(tv)}</td><td>${pctBadge(calcAchievement(x.virginSales,tv))}</td><td>${money(x.friendiRev)}</td><td>${money(trf)}</td><td>${pctBadge(calcAchievement(x.friendiRev,trf))}</td><td>${money(x.virginRev)}</td><td>${money(trv)}</td><td>${pctBadge(calcAchievement(x.virginRev,trv))}</td></tr>`}));renderCommissions(arr);renderCash(arr);renderUsers();}
 function getBoosterData(arr){let rows=userRows(arr);return rows.map(x=>{let cFriendiSales=boosterContribution(x.friendiSales,x.t.friendiTarget,SETTINGS.friendiSalesBoosterPct);let cVirginSales=boosterContribution(x.virginSales,x.t.virginTarget,SETTINGS.virginSalesBoosterPct);let cFriendiRev=boosterContribution(x.friendiRev,x.t.friendiRevTarget,SETTINGS.friendiRevBoosterPct);let cVirginRev=boosterContribution(x.virginRev,x.t.virginRevTarget,SETTINGS.virginRevBoosterPct);let cPostpaid=boosterContribution(x.postpaidSales,x.t.postpaidTarget,SETTINGS.postpaidSalesBoosterPct);let cHbb=boosterContribution(x.hbbSales,x.t.hbbTarget,SETTINGS.hbbSalesBoosterPct);let totalPct=cFriendiSales+cVirginSales+cFriendiRev+cVirginRev+cPostpaid+cHbb;let eligible=totalPct>=n(SETTINGS.boosterThreshold);let amount=eligible?n(SETTINGS.boosterAmount)*totalPct/100:0;return {...x,cFriendiSales,cVirginSales,cFriendiRev,cVirginRev,cPostpaid,cHbb,totalPct,eligible,amount}})}
@@ -215,5 +264,11 @@ function clearDates(){document.getElementById('fromDate').value='';document.getE
 function renderAll(){let arr=filtered();renderKpis(arr);renderCharts(arr);renderTables(arr);renderCommissions(arr);renderBooster(arr);renderCash(arr);renderTargets();renderRepo();renderUsers();applyPermissions();}
 async function init(){await syncFromFirebase();loadSettings();await loadData();renderAll();applyPermissions();listenForVirginChanges();}
 async function preloadAuth(){let users=await sharedGet('virgin_users_v4');if(users)localStorage.setItem('virgin_users_v4',users)}
-preloadAuth().then(()=>{if(localStorage.getItem('virgin_logged_v2')==='1'){document.getElementById('login').classList.add('hidden');init();}});
-</script></body></html> 
+preloadAuth().then(()=>{
+  // ── تحقق من الجلسة فوراً بدون انتظار Firebase ──
+  const isLogged = localStorage.getItem('virgin_logged_v2')==='1';
+  const savedUser = localStorage.getItem('virgin_current_user_v4');
+  if(isLogged && savedUser){
+    document.getElementById('login').classList.add('hidden');
+    init();}});
+</script></body></html>
